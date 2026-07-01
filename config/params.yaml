@@ -4,3 +4,4 @@ target_sim_node:
     initial_velocity: [10.0, 0.0, 30.0]   # ~45 deg launch in the x-z plane
     gravity: 9.81
     update_rate: 50.0
+    loop: true

@@ -20,6 +20,7 @@ public:
         "initial_velocity", {10.0, 0.0, 30.0});
     gravity_ = declare_parameter<double>("gravity", 9.81);
     update_rate_hz_ = declare_parameter<double>("update_rate", 50.0);
+    loop_ = declare_parameter<bool>("loop", true);
 
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
@@ -33,15 +34,24 @@ public:
 
 private:
   void update() {
-    const double t = (now() - start_time_).seconds();
+    double t = (now() - start_time_).seconds();
 
-    // TODO(you) Phase 1, step 1: compute the ballistic position at time t
-    //   p(t) = p0 + v0 * t + 0.5 * a * t^2   with a = (0, 0, -gravity_)
-    //   Store it in x, y, z below.
-    double x = 0.0, y = 0.0, z = 0.0;
+    // p(t) = p0 + v0*t + 0.5*a*t^2, with gravity acting only on z
+    double x = initial_position_[0] + initial_velocity_[0] * t;
+    double y = initial_position_[1] + initial_velocity_[1] * t;
+    double z = initial_position_[2] + initial_velocity_[2] * t -
+               0.5 * gravity_ * t * t;
 
-    // TODO(you) Phase 1, step 2: stop (or reset) the simulation when the
-    //   target hits the ground (z <= 0).
+    if (z <= 0.0 && t > 0.0) {
+      if (loop_) {
+        start_time_ = now();
+        x = initial_position_[0];
+        y = initial_position_[1];
+        z = initial_position_[2];
+      } else {
+        z = 0.0;  // landed: keep broadcasting the resting pose
+      }
+    }
 
     // Broadcast world -> target
     geometry_msgs::msg::TransformStamped tf_msg;
@@ -56,15 +66,31 @@ private:
     tf_msg.transform.rotation.w = 1.0;
     tf_broadcaster_->sendTransform(tf_msg);
 
-    // TODO(you) Phase 1, step 3: publish a visualization_msgs::msg::Marker
-    //   (type SPHERE, frame "world") at the target position so you can see
-    //   it in RViz. Docs: https://wiki.ros.org/rviz/DisplayTypes/Marker
+    // Ground-truth sphere in RViz; orange, since red/green are reserved for
+    // the radar measurements and the filter estimate in later phases.
+    visualization_msgs::msg::Marker marker;
+    marker.header.stamp = tf_msg.header.stamp;
+    marker.header.frame_id = "world";
+    marker.ns = "target";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::SPHERE;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.pose.position.x = x;
+    marker.pose.position.y = y;
+    marker.pose.position.z = z;
+    marker.pose.orientation.w = 1.0;
+    marker.scale.x = marker.scale.y = marker.scale.z = 0.5;
+    marker.color.r = 1.0;
+    marker.color.g = 0.5;
+    marker.color.a = 1.0;
+    marker_pub_->publish(marker);
   }
 
   std::vector<double> initial_position_;
   std::vector<double> initial_velocity_;
   double gravity_;
   double update_rate_hz_;
+  bool loop_;
 
   rclcpp::Time start_time_;
   rclcpp::TimerBase::SharedPtr timer_;
