@@ -41,5 +41,11 @@ def generate_launch_description():
             parameters=[params],
             output='screen',
         ),
-        # Phase 4: interceptor_node
+        Node(
+            package='air_defense_sim',
+            executable='interceptor_node',
+            name='interceptor_node',
+            parameters=[params],
+            output='screen',
+        ),
     ])

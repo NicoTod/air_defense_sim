@@ -27,10 +27,16 @@ ament_target_dependencies(estimator_node
   rclcpp tf2 tf2_ros tf2_geometry_msgs geometry_msgs visualization_msgs)
 target_link_libraries(estimator_node Eigen3::Eigen)
 
+add_executable(interceptor_node src/interceptor_node.cpp)
+ament_target_dependencies(interceptor_node
+  rclcpp tf2 tf2_ros geometry_msgs visualization_msgs)
+target_link_libraries(interceptor_node Eigen3::Eigen)
+
 install(TARGETS
   target_sim_node
   radar_sensor_node
   estimator_node
+  interceptor_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch config

@@ -27,6 +27,11 @@ Visualization Manager:
       Name: Estimator
       Topic:
         Value: /estimator/markers
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Interceptor
+      Topic:
+        Value: /interceptor/markers
   Global Options:
     Fixed Frame: world
     Frame Rate: 30

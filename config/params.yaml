@@ -18,3 +18,10 @@ estimator_node:
     gravity: 9.81
     reinit_distance: 8.0      # measurement further than this from the estimate
                               # means the target restarted -> reset the filter
+
+interceptor_node:
+  ros__parameters:
+    launch_position: [50.0, 10.0, 0.0]
+    speed: 40.0          # m/s, must beat the target (~31 m/s at launch)
+    gravity: 9.81        # used to roll the target's state forward
+    update_rate: 50.0
