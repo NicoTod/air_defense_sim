@@ -5,3 +5,8 @@ target_sim_node:
     gravity: 9.81
     update_rate: 50.0
     loop: true
+
+radar_sensor_node:
+  ros__parameters:
+    noise_stddev: 0.5    # meters of Gaussian noise on each axis
+    update_rate: 10.0    # radar is slower than the sim (measurements are sparse)

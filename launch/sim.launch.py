@@ -18,5 +18,21 @@ def generate_launch_description():
             parameters=[params],
             output='screen',
         ),
-        # Phase 2+: radar_sensor_node, estimator_node, interceptor_node
+        # The radar sits at a fixed pose in the world: this publishes the
+        # static transform world -> radar_link (x=30, y=0, z=0, no rotation).
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='radar_tf',
+            arguments=['--x', '30', '--frame-id', 'world',
+                       '--child-frame-id', 'radar_link'],
+        ),
+        Node(
+            package='air_defense_sim',
+            executable='radar_sensor_node',
+            name='radar_sensor_node',
+            parameters=[params],
+            output='screen',
+        ),
+        # Phase 3+: estimator_node, interceptor_node
     ])

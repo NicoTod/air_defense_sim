@@ -16,8 +16,13 @@ add_executable(target_sim_node src/target_sim_node.cpp)
 ament_target_dependencies(target_sim_node
   rclcpp tf2 tf2_ros geometry_msgs visualization_msgs)
 
+add_executable(radar_sensor_node src/radar_sensor_node.cpp)
+ament_target_dependencies(radar_sensor_node
+  rclcpp tf2 tf2_ros geometry_msgs visualization_msgs)
+
 install(TARGETS
   target_sim_node
+  radar_sensor_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch config
