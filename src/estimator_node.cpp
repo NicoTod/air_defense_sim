@@ -2,6 +2,9 @@
 
 #include <Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
@@ -81,6 +84,9 @@ public:
     process_noise_ = declare_parameter<double>("process_noise", 1.0);
     gravity_ = declare_parameter<double>("gravity", 9.81);
 
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
+    tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
+
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
         "estimator/pose", 10);
     marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
@@ -93,8 +99,20 @@ public:
 
 private:
   void onMeasurement(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
-    const Eigen::Vector3d z(msg->pose.position.x, msg->pose.position.y,
-                            msg->pose.position.z);
+    // The radar measures in its own frame: transform it into the world
+    // frame before filtering (this is why the estimator needs tf2).
+    geometry_msgs::msg::PoseStamped meas_world;
+    try {
+      auto tf = tf_buffer_->lookupTransform("world", msg->header.frame_id,
+                                            tf2::TimePointZero);
+      tf2::doTransform(*msg, meas_world, tf);
+    } catch (const tf2::TransformException&) {
+      return;  // tf not available yet; skip this measurement
+    }
+
+    const Eigen::Vector3d z(meas_world.pose.position.x,
+                            meas_world.pose.position.y,
+                            meas_world.pose.position.z);
     const rclcpp::Time stamp(msg->header.stamp);
 
     if (!initialized_) {
@@ -149,6 +167,8 @@ private:
   bool initialized_ = false;
   rclcpp::Time last_stamp_;
 
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr measurement_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
