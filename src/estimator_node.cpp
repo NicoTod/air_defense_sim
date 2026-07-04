@@ -6,6 +6,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,8 @@ public:
 
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
         "estimator/pose", 10);
+    impact_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
+        "estimator/predicted_impact", 10);
     marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
         "estimator/markers", 10);
 
@@ -141,6 +144,7 @@ private:
     kf_.update(z, measurement_stddev_);
 
     publishEstimate(stamp);
+    publishPrediction(stamp);
   }
 
   void publishEstimate(const rclcpp::Time& stamp) {
@@ -167,6 +171,58 @@ private:
     marker_pub_->publish(marker);
   }
 
+  // Roll the ballistic model forward from the current estimate until the
+  // ground (z = 0): gives the predicted trajectory and the impact point.
+  void publishPrediction(const rclcpp::Time& stamp) {
+    Eigen::Vector3d p = kf_.x.head<3>();
+    Eigen::Vector3d v = kf_.x.tail<3>();
+
+    visualization_msgs::msg::Marker line;
+    line.header.stamp = stamp;
+    line.header.frame_id = "world";
+    line.ns = "predicted_path";
+    line.id = 1;
+    line.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    line.action = visualization_msgs::msg::Marker::ADD;
+    line.scale.x = 0.1;
+    line.color.g = 1.0;
+    line.color.a = 1.0;
+
+    const double dt = 0.05;
+    for (double t = 0.0; t < 30.0 && p.z() >= 0.0; t += dt) {
+      geometry_msgs::msg::Point pt;
+      pt.x = p.x();
+      pt.y = p.y();
+      pt.z = p.z();
+      line.points.push_back(pt);
+      p += v * dt;
+      v.z() -= gravity_ * dt;
+    }
+    marker_pub_->publish(line);
+
+    if (line.points.empty()) {
+      return;
+    }
+    geometry_msgs::msg::PointStamped impact;
+    impact.header = line.header;
+    impact.point = line.points.back();  // last point is at ground level
+    impact_pub_->publish(impact);
+
+    visualization_msgs::msg::Marker impact_marker;
+    impact_marker.header = line.header;
+    impact_marker.ns = "predicted_impact";
+    impact_marker.id = 2;
+    impact_marker.type = visualization_msgs::msg::Marker::SPHERE;
+    impact_marker.action = visualization_msgs::msg::Marker::ADD;
+    impact_marker.pose.position = impact.point;
+    impact_marker.pose.orientation.w = 1.0;
+    impact_marker.scale.x = impact_marker.scale.y = impact_marker.scale.z = 1.0;
+    impact_marker.color.r = 1.0;
+    impact_marker.color.g = 1.0;
+    impact_marker.color.a = 1.0;
+    marker_pub_->publish(impact_marker);
+  }
+
   double measurement_stddev_;
   double process_noise_;
   double gravity_;
@@ -180,6 +236,7 @@ private:
   std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr measurement_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr impact_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
 };
 
