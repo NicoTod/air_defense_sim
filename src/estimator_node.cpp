@@ -7,6 +7,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/point_stamped.hpp>
+#include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,8 @@ public:
 
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
         "estimator/pose", 10);
+    velocity_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
+        "estimator/velocity", 10);
     impact_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
         "estimator/predicted_impact", 10);
     marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
@@ -156,6 +159,15 @@ private:
     pose.pose.position.z = kf_.x(2);
     pose.pose.orientation.w = 1.0;
     pose_pub_->publish(pose);
+
+    // The filter estimates velocity even though the radar never measures
+    // it: this is what the interceptor uses to lead the target.
+    geometry_msgs::msg::Vector3Stamped vel;
+    vel.header = pose.header;
+    vel.vector.x = kf_.x(3);
+    vel.vector.y = kf_.x(4);
+    vel.vector.z = kf_.x(5);
+    velocity_pub_->publish(vel);
 
     // Green sphere at the estimated position
     visualization_msgs::msg::Marker marker;
@@ -236,6 +248,7 @@ private:
   std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr measurement_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr velocity_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr impact_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
 };
