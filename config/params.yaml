@@ -22,8 +22,9 @@ estimator_node:
 interceptor_node:
   ros__parameters:
     launch_position: [50.0, 10.0, 0.0]
-    speed: 40.0          # m/s, must beat the target (~31 m/s at launch)
-    hit_radius: 1.5      # distance to ground truth that counts as a hit
+    speed: 60.0          # m/s, needs a clear margin over the target (~31 m/s)
+    hit_radius: 2.0      # proximity fuze: distance to ground truth that
+                         # counts as a hit (also covers the 50 Hz motion steps)
     gravity: 9.81        # used to roll the target's state forward
     update_rate: 50.0
     cooldown: 3.0        # seconds to wait at base after a hit

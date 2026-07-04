@@ -74,7 +74,8 @@ private:
       flying_ = false;
       position_ = launch_position_;
     } else {
-      const Eigen::Vector3d aim = computeAimPoint();
+      const double estimate_age = (now() - last_estimate_stamp_).seconds();
+      const Eigen::Vector3d aim = computeAimPoint(estimate_age);
       const Eigen::Vector3d direction = (aim - position_).normalized();
       position_ += direction * speed_ * dt;
       checkHit();
@@ -85,9 +86,14 @@ private:
 
   // Roll the target's estimated state forward with the ballistic model and
   // return the earliest point the interceptor can reach in time.
-  Eigen::Vector3d computeAimPoint() const {
+  Eigen::Vector3d computeAimPoint(double estimate_age) const {
     Eigen::Vector3d p = target_pos_;
     Eigen::Vector3d v = target_vel_;
+    // the estimate is up to one radar period old (the estimator only
+    // publishes on measurements): catch it up to the present first
+    p += v * estimate_age;
+    p.z() -= 0.5 * gravity_ * estimate_age * estimate_age;
+    v.z() -= gravity_ * estimate_age;
     const double step = 0.05;
     for (double t = 0.0; t < 30.0; t += step) {
       if ((p - position_).norm() <= speed_ * t) {
