@@ -16,3 +16,5 @@ estimator_node:
     measurement_stddev: 0.5   # how noisy we believe the radar is (matches above)
     process_noise: 1.0        # trust in the ballistic model (lower = smoother)
     gravity: 9.81
+    reinit_distance: 8.0      # measurement further than this from the estimate
+                              # means the target restarted -> reset the filter

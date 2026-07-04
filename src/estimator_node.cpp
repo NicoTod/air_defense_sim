@@ -83,6 +83,7 @@ public:
     measurement_stddev_ = declare_parameter<double>("measurement_stddev", 0.5);
     process_noise_ = declare_parameter<double>("process_noise", 1.0);
     gravity_ = declare_parameter<double>("gravity", 9.81);
+    reinit_distance_ = declare_parameter<double>("reinit_distance", 8.0);
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(get_clock());
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
@@ -129,7 +130,14 @@ private:
       kf_.predict(dt, gravity_, process_noise_);
     }
 
-    // 2) correct with the measurement
+    // 2) track loss: if the measurement is far from the prediction the
+    //    target has restarted (sim loops) -> reinitialize the filter
+    if ((z - kf_.x.head<3>()).norm() > reinit_distance_) {
+      kf_.init(z);
+      return;
+    }
+
+    // 3) correct with the measurement
     kf_.update(z, measurement_stddev_);
 
     publishEstimate(stamp);
@@ -162,6 +170,7 @@ private:
   double measurement_stddev_;
   double process_noise_;
   double gravity_;
+  double reinit_distance_;
 
   KalmanFilter kf_;
   bool initialized_ = false;
