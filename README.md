@@ -1,7 +1,7 @@
 # air_defense_sim
 
-Kinematic interception simulation ("Iron Dome" style) for the Robot
-Programming 2025/26 course — Sapienza University of Rome.
+Kinematic interception simulation (counter-rocket air-defense style) for
+the Robot Programming 2025/26 course — Sapienza University of Rome.
 
 A ballistic target flies across the world. A radar measures its position
 with noise, a Kalman filter recovers the true state from the noisy
