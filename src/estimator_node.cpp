@@ -169,7 +169,9 @@ private:
     vel.vector.z = kf_.x(5);
     velocity_pub_->publish(vel);
 
-    // Green sphere at the estimated position
+    // Green sphere at the estimated position. It is deliberately a bit
+    // bigger than the target and semi-transparent, so it reads as a "cloud
+    // of belief" around the red ground truth instead of hiding it.
     visualization_msgs::msg::Marker marker;
     marker.header = pose.header;
     marker.ns = "estimate";
@@ -177,9 +179,9 @@ private:
     marker.type = visualization_msgs::msg::Marker::SPHERE;
     marker.action = visualization_msgs::msg::Marker::ADD;
     marker.pose = pose.pose;
-    marker.scale.x = marker.scale.y = marker.scale.z = 0.6;
+    marker.scale.x = marker.scale.y = marker.scale.z = 2.2;
     marker.color.g = 1.0;
-    marker.color.a = 1.0;
+    marker.color.a = 0.4;
     marker_pub_->publish(marker);
   }
 
@@ -196,7 +198,7 @@ private:
     line.id = 1;
     line.type = visualization_msgs::msg::Marker::LINE_STRIP;
     line.action = visualization_msgs::msg::Marker::ADD;
-    line.scale.x = 0.1;
+    line.scale.x = 0.25;
     line.color.g = 1.0;
     line.color.a = 1.0;
 
@@ -228,7 +230,7 @@ private:
     impact_marker.action = visualization_msgs::msg::Marker::ADD;
     impact_marker.pose.position = impact.point;
     impact_marker.pose.orientation.w = 1.0;
-    impact_marker.scale.x = impact_marker.scale.y = impact_marker.scale.z = 1.0;
+    impact_marker.scale.x = impact_marker.scale.y = impact_marker.scale.z = 2.5;
     impact_marker.color.r = 1.0;
     impact_marker.color.g = 1.0;
     impact_marker.color.a = 1.0;

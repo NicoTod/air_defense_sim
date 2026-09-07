@@ -14,6 +14,13 @@ find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+# our own headers live in include/air_defense_sim
+include_directories(include)
+
+add_executable(world_node src/world_node.cpp)
+ament_target_dependencies(world_node
+  rclcpp visualization_msgs)
+
 add_executable(target_sim_node src/target_sim_node.cpp)
 ament_target_dependencies(target_sim_node
   rclcpp tf2 tf2_ros geometry_msgs visualization_msgs)
@@ -33,6 +40,7 @@ ament_target_dependencies(interceptor_node
 target_link_libraries(interceptor_node Eigen3::Eigen)
 
 install(TARGETS
+  world_node
   target_sim_node
   radar_sensor_node
   estimator_node

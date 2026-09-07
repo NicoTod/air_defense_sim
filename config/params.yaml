@@ -1,10 +1,28 @@
+# The scenery: ground plane, city, radar tower, launcher pad.
+# Keep radar_position / launcher_position in sync with the radar static
+# transform in the launch file and with interceptor_node.launch_position.
+world_node:
+  ros__parameters:
+    ground_size: 200.0
+    radar_position: [30.0, 0.0]
+    launcher_position: [40.0, 10.0]
+
 target_sim_node:
   ros__parameters:
     initial_position: [0.0, 0.0, 0.0]
-    initial_velocity: [10.0, 0.0, 30.0]   # ~45 deg launch in the x-z plane
+    # Nominal shot: with g = 9.81 the flight lasts 2*vz/g = 4.9 s and lands
+    # at vx * 4.9 = 64 m, i.e. right on the city. The target is aimed at
+    # what we are defending, which is the whole point of the scenario.
+    initial_velocity: [13.0, 0.0, 24.0]
+    # Each new target is drawn in initial_velocity +/- this, per axis. Kept
+    # narrow on purpose: the arcs still differ every time (impacts land
+    # between x = 45 and x = 85, so some fall short and some overshoot the
+    # city) but every target remains a credible threat to it.
+    velocity_spread: [2.5, 2.0, 3.0]
     gravity: 9.81
     update_rate: 50.0
     loop: true
+    trail_step: 0.5      # store a trail point every this many metres
 
 radar_sensor_node:
   ros__parameters:
@@ -21,10 +39,22 @@ estimator_node:
 
 interceptor_node:
   ros__parameters:
-    launch_position: [50.0, 10.0, 0.0]
-    speed: 60.0          # m/s, needs a clear margin over the target (~31 m/s)
+    # The pad stands in front of the city (which starts at x = 58), so the
+    # interceptor flies up-range towards the incoming target and the kill
+    # happens before the target is over what we are protecting.
+    launch_position: [40.0, 10.0, 0.0]
+    speed: 45.0          # m/s, faster than the target but not by so much
+                         # that the interception always succeeds
     hit_radius: 2.0      # proximity fuze: distance to ground truth that
                          # counts as a hit (also covers the 50 Hz motion steps)
     gravity: 9.81        # used to roll the target's state forward
     update_rate: 50.0
-    cooldown: 3.0        # seconds to wait at base after a hit
+    max_flight_time: 0.7 # seconds of fuel. At 45 m/s that is ~31 m of reach,
+                         # about the median engagement: the closer shots
+                         # connect, the longer ones burn out and fly home.
+    cooldown: 1.5        # seconds to reload after a shot. Together with the
+                         # fuel this sets the difficulty: the interceptor
+                         # gets ~1 extra salvo per target, so roughly one
+                         # target in nine survives long enough to land and
+                         # you get to see the ground explosion.
+    trail_step: 0.5      # store a trail point every this many metres

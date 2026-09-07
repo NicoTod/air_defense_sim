@@ -11,6 +11,14 @@ def generate_launch_description():
         'config', 'params.yaml')
 
     return LaunchDescription([
+        # Static scenery (ground, city, radar tower, launcher pad).
+        Node(
+            package='air_defense_sim',
+            executable='world_node',
+            name='world_node',
+            parameters=[params],
+            output='screen',
+        ),
         Node(
             package='air_defense_sim',
             executable='target_sim_node',

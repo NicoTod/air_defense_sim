@@ -60,7 +60,8 @@ private:
     meas.pose.orientation.w = 1.0;
     measurement_pub_->publish(meas);
 
-    // Red dots in RViz: keep the last max_points_ measurements
+    // Raw measurements in RViz: white dots, the last max_points_ of them.
+    // Kept short on purpose, otherwise the cloud hides everything else.
     recent_points_.push_back(meas.pose.position);
     if (recent_points_.size() > max_points_) {
       recent_points_.erase(recent_points_.begin());
@@ -73,8 +74,8 @@ private:
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::POINTS;
     marker.action = visualization_msgs::msg::Marker::ADD;
-    marker.scale.x = marker.scale.y = 0.15;
-    marker.color.r = 1.0;
+    marker.scale.x = marker.scale.y = 0.4;
+    marker.color.r = marker.color.g = marker.color.b = 1.0;
     marker.color.a = 1.0;
     marker.points = recent_points_;
     marker_pub_->publish(marker);
@@ -86,7 +87,7 @@ private:
   std::mt19937 rng_;
   std::normal_distribution<double> noise_;
   std::vector<geometry_msgs::msg::Point> recent_points_;
-  const size_t max_points_ = 200;
+  const size_t max_points_ = 40;
 
   rclcpp::TimerBase::SharedPtr timer_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
