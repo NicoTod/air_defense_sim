@@ -18,6 +18,10 @@ public:
   RadarSensorNode() : Node("radar_sensor_node") {
     noise_stddev_ = declare_parameter<double>("noise_stddev", 0.5);
     update_rate_hz_ = declare_parameter<double>("update_rate", 10.0);
+    // A radar reports what it can currently see. tf2 keeps serving the last
+    // known transform after the broadcaster stops, so without this the
+    // sensor would happily keep "detecting" a target that no longer exists.
+    max_target_age_ = declare_parameter<double>("max_target_age", 0.2);
 
     // tf listener: fills tf_buffer_ with every transform broadcast on /tf,
     // so we can query "where is the target relative to the radar?"
@@ -48,6 +52,16 @@ private:
                                            tf2::TimePointZero);
     } catch (const tf2::TransformException&) {
       // target_sim_node not broadcasting yet; try again on the next tick
+      return;
+    }
+
+    // TimePointZero above means "latest available", which keeps succeeding
+    // from the tf2 buffer cache once target_sim_node stops broadcasting
+    // (between one target and the next, or after one is destroyed). Serving
+    // that stale pose would be a ghost detection: the filter would track a
+    // motionless target and predict it dropping straight down. An empty sky
+    // must produce no measurement at all.
+    if ((now() - rclcpp::Time(tf_msg.header.stamp)).seconds() > max_target_age_) {
       return;
     }
 
@@ -83,6 +97,7 @@ private:
 
   double noise_stddev_;
   double update_rate_hz_;
+  double max_target_age_;
 
   std::mt19937 rng_;
   std::normal_distribution<double> noise_;

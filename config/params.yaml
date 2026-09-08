@@ -30,6 +30,9 @@ radar_sensor_node:
   ros__parameters:
     noise_stddev: 0.5    # meters of Gaussian noise on each axis
     update_rate: 10.0    # radar is slower than the sim (measurements are sparse)
+    max_target_age: 0.2  # ignore tf readings older than this: with nothing in
+                         # the sky the radar must report nothing, not the last
+                         # position it saw (tf2 keeps serving that from cache)
 
 estimator_node:
   ros__parameters:
