@@ -37,6 +37,10 @@ public:
     update_rate_hz_ = declare_parameter<double>("update_rate", 50.0);
     loop_ = declare_parameter<bool>("loop", true);
     trail_step_ = declare_parameter<double>("trail_step", 0.5);
+    // Empty-sky pause between one target and the next. Without it the next
+    // target appears the instant the previous one dies, which makes the
+    // engagements run into each other and is hard to follow.
+    relaunch_delay_ = declare_parameter<double>("relaunch_delay", 2.5);
 
     // The ground impact is the "we missed" event, so it gets a big, slow,
     // wide explosion. The air kill drawn by the interceptor is smaller.
@@ -49,12 +53,13 @@ public:
     marker_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>(
         "target/markers", 10);
 
-    // The interceptor tells us when it destroyed us: we then respawn a new
-    // target immediately, without an explosion on the ground.
+    // The interceptor tells us when it destroyed us: the wreck disappears
+    // and, after the pause, a fresh target comes in. No ground explosion:
+    // the interceptor draws the fireball where it made the kill.
     hit_sub_ = create_subscription<geometry_msgs::msg::PointStamped>(
         "interceptor/hit", 10,
         [this](const geometry_msgs::msg::PointStamped::SharedPtr) {
-          restart(now());
+          beginPause(now());
         });
 
     rng_.seed(std::random_device{}());
@@ -67,6 +72,19 @@ public:
 private:
   void update() {
     const rclcpp::Time stamp = now();
+
+    // Empty sky: no target exists right now, so we broadcast no transform
+    // and draw nothing but the explosion that is still burning out. The
+    // estimator loses the track meanwhile, which is exactly what we want.
+    if (waiting_) {
+      if (stamp >= next_launch_time_) {
+        restart(stamp);
+      } else {
+        publishExplosionOnly(stamp);
+        return;
+      }
+    }
+
     double t = (stamp - start_time_).seconds();
 
     // p(t) = p0 + v0*t + 0.5*a*t^2, with gravity acting only on z
@@ -80,13 +98,11 @@ private:
         // We were never intercepted: the target hits the ground and the
         // defence has failed. Blow up here, then send in the next one.
         explosion_.trigger(x, y, 0.0, stamp);
-        RCLCPP_WARN(get_logger(), "MISS: target hit the ground at (%.1f, %.1f)",
+        RCLCPP_WARN(get_logger(), "IMPACT: target reached the ground at (%.1f, %.1f)",
                     x, y);
-        restart(stamp);
-        t = 0.0;
-        x = initial_position_[0];
-        y = initial_position_[1];
-        z = initial_position_[2];
+        beginPause(stamp);
+        publishExplosionOnly(stamp);
+        return;
       } else {
         z = 0.0;  // landed: keep broadcasting the resting pose
       }
@@ -119,6 +135,23 @@ private:
     }
     start_time_ = stamp;
     trail_.clear();
+    waiting_ = false;
+  }
+
+  // Retire the current target and hold the sky empty for relaunch_delay_.
+  void beginPause(const rclcpp::Time& stamp) {
+    waiting_ = true;
+    next_launch_time_ = stamp + rclcpp::Duration::from_seconds(relaunch_delay_);
+    trail_.clear();
+  }
+
+  // During the pause there is no target to draw, but an explosion may still
+  // be playing, so keep publishing that on its own.
+  void publishExplosionOnly(const rclcpp::Time& stamp) {
+    if (!explosion_.active(stamp)) {
+      return;
+    }
+    marker_pub_->publish(explosion_.markers(stamp));
   }
 
   // Record where we have been, but only every trail_step_ metres: at 50 Hz,
@@ -200,8 +233,11 @@ private:
   double update_rate_hz_;
   bool loop_;
   double trail_step_;
+  double relaunch_delay_;
 
   rclcpp::Time start_time_;
+  bool waiting_ = false;              // true while the sky is deliberately empty
+  rclcpp::Time next_launch_time_{0, 0, RCL_ROS_TIME};
   std::vector<geometry_msgs::msg::Point> trail_;
   const size_t max_trail_points_ = 400;
   Explosion explosion_;

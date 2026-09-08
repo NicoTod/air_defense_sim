@@ -23,6 +23,8 @@ target_sim_node:
     update_rate: 50.0
     loop: true
     trail_step: 0.5      # store a trail point every this many metres
+    relaunch_delay: 2.5  # empty-sky pause between one target and the next,
+                         # so the engagements do not run into each other
 
 radar_sensor_node:
   ros__parameters:
@@ -49,6 +51,14 @@ interceptor_node:
                          # counts as a hit (also covers the 50 Hz motion steps)
     gravity: 9.81        # used to roll the target's state forward
     update_rate: 50.0
+    # Threat evaluation: engage only targets predicted to land within
+    # defend_radius of defend_center, which is the middle of the city
+    # (the skyline spans x = 55..83). Targets falling short or wide are
+    # deliberately left alone -- watch for the HOLD line in the log.
+    defend_center: [69.0, -3.0]
+    defend_radius: 18.0
+    decision_delay: 0.6  # give the filter this long to converge before
+                         # trusting its predicted impact enough to decide on
     max_flight_time: 0.7 # seconds of fuel. At 45 m/s that is ~31 m of reach,
                          # about the median engagement: the closer shots
                          # connect, the longer ones burn out and fly home.

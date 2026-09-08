@@ -36,6 +36,19 @@ public:
     // target within this many seconds it burns out and the target gets
     // through. This is what makes an interception able to FAIL.
     max_flight_time_ = declare_parameter<double>("max_flight_time", 2.0);
+    // Threat evaluation: the interceptor does not shoot at everything it
+    // can see. It engages only targets whose predicted impact falls inside
+    // the defended zone (the city); anything landing short or wide is left
+    // alone. Ammunition is finite, and this is the decision a real air
+    // defence system makes.
+    auto defend = declare_parameter<std::vector<double>>(
+        "defend_center", {69.0, -3.0});
+    defend_center_ = Eigen::Vector2d(defend[0], defend[1]);
+    defend_radius_ = declare_parameter<double>("defend_radius", 18.0);
+    // The filter's velocity is still converging right after it initializes,
+    // so its first impact predictions are unreliable. Give it this long
+    // before we trust the prediction enough to decide on it.
+    decision_delay_ = declare_parameter<double>("decision_delay", 0.6);
     trail_step_ = declare_parameter<double>("trail_step", 0.5);
 
     // The air kill: a quick, tight fireball (the ground miss drawn by the
@@ -70,6 +83,14 @@ public:
           target_vel_ = Eigen::Vector3d(msg->vector.x, msg->vector.y,
                                         msg->vector.z);
         });
+    // Where the estimator thinks this target will land. That prediction is
+    // what the engage/hold-fire decision is made on.
+    impact_sub_ = create_subscription<geometry_msgs::msg::PointStamped>(
+        "estimator/predicted_impact", 10,
+        [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) {
+          predicted_impact_ = Eigen::Vector2d(msg->point.x, msg->point.y);
+          have_impact_ = true;
+        });
 
     relaunch_time_ = now();
     timer_ = create_wall_timer(
@@ -84,12 +105,38 @@ private:
         last_estimate_stamp_.nanoseconds() > 0 &&
         (now() - last_estimate_stamp_).seconds() < 1.0;
 
+    // How long the estimator has been tracking this target without a break.
+    // A fresh track means a new target, so the clock restarts with it.
+    if (estimate_fresh && !was_fresh_) {
+      track_start_ = now();
+      have_impact_ = false;  // the old target's prediction does not apply
+    }
+    was_fresh_ = estimate_fresh;
+
     if (!flying_) {
-      // waiting at the launcher: engage as soon as a target is tracked
-      if (estimate_fresh && now() >= relaunch_time_) {
-        flying_ = true;
-        launch_time_ = now();
-        trail_.clear();  // a new missile draws a new trail
+      // Waiting at the launcher. Engage only once we have a track, the
+      // launcher has reloaded, the filter has had decision_delay_ to
+      // converge, and the target is actually predicted to hit the city.
+      if (estimate_fresh && now() >= relaunch_time_ && have_impact_ &&
+          (now() - track_start_).seconds() >= decision_delay_) {
+        const double miss_distance = (predicted_impact_ - defend_center_).norm();
+        if (miss_distance > defend_radius_) {
+          RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 3000,
+                               "HOLD: predicted impact %.0f m from the city, "
+                               "outside the defended zone", miss_distance);
+        } else if (const double shot = requiredFlightTime();
+                   shot > max_flight_time_) {
+          // The target threatens the city but is still out of reach: firing
+          // now would only burn the missile up short of it. Wait -- the
+          // target is flying towards us, so the shot gets easier every tick.
+          RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 3000,
+                               "WAIT: intercept needs %.2f s of flight, "
+                               "fuel is %.2f s", shot, max_flight_time_);
+        } else {
+          flying_ = true;
+          launch_time_ = now();
+          trail_.clear();  // a new missile draws a new trail
+        }
       }
     } else if (!estimate_fresh) {
       // track lost: return to base
@@ -133,6 +180,15 @@ private:
       }
     }
     return p;  // fallback: aim at the impact point
+  }
+
+  // How long the shot would take if we launched right now. Used before
+  // launching: a missile fired at something it cannot reach in time is a
+  // missile wasted, so the launcher holds until the shot comes into range.
+  double requiredFlightTime() const {
+    const double estimate_age = (now() - last_estimate_stamp_).seconds();
+    const Eigen::Vector3d aim = computeAimPoint(estimate_age);
+    return (aim - position_).norm() / speed_;
   }
 
   // The hit check is the "referee": it compares against the ground-truth
@@ -270,6 +326,9 @@ private:
   double cooldown_;
   double max_flight_time_;
   double trail_step_;
+  Eigen::Vector2d defend_center_;
+  double defend_radius_;
+  double decision_delay_;
 
   Eigen::Vector3d position_;
   bool flying_ = false;
@@ -278,6 +337,10 @@ private:
   rclcpp::Time last_estimate_stamp_{0, 0, RCL_ROS_TIME};
   rclcpp::Time relaunch_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time launch_time_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time track_start_{0, 0, RCL_ROS_TIME};
+  bool was_fresh_ = false;                     // track state on the last tick
+  Eigen::Vector2d predicted_impact_{0.0, 0.0}; // where the target will land
+  bool have_impact_ = false;                   // ... if we have heard one yet
 
   std::vector<geometry_msgs::msg::Point> trail_;
   const size_t max_trail_points_ = 400;
@@ -289,6 +352,7 @@ private:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr velocity_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr impact_sub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr hit_pub_;
 };
